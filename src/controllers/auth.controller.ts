@@ -52,7 +52,12 @@ export const register = async (req: Request, res: Response) => {
   const passwordHash = await argon2.hash(password);
   const user = await prisma.user.create({
     data: { email: normalizedEmail, passwordHash },
-    select: { id: true, email: true, createdAt: true },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      createdAt: true
+    },
   });
 
   res.status(201).json({ user });
@@ -87,7 +92,7 @@ export const login = async (req: Request, res: Response) => {
   setRefreshCookie(res, refresh.token);
   res.json({
     accessToken: signAccessToken(user.id),
-    user: { id: user.id, email: user.email },
+    user: { id: user.id, email: user.email, role: user.role },
   });
 }
 
