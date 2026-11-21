@@ -29,7 +29,7 @@ function clearRefreshCookie(res: Response) {
 }
 
 export const register = async (req: Request, res: Response) => {
-  const { email, password } = req.body ?? {};
+  const { email, password, fullName } = req.body ?? {};
 
   if (
     typeof email !== "string" ||
@@ -41,7 +41,19 @@ export const register = async (req: Request, res: Response) => {
     return;
   }
 
+  // fullName is optional, but if it's sent it must be a reasonable string
+  if (fullName !== undefined && (typeof fullName !== "string" || fullName.trim().length > 100)) {
+    res.status(400).json({ error: "Full name must be text of at most 100 characters" });
+    return;
+  }
+
   const normalizedEmail = email.trim().toLowerCase();
+  const normalizedFullName = typeof fullName === "string" && fullName.trim() ? fullName.trim() : null;
+
+  if (!normalizedFullName) {
+    res.status(409).json({ error: "Full name is required" });
+    return;
+  }
 
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing) {
@@ -51,17 +63,18 @@ export const register = async (req: Request, res: Response) => {
 
   const passwordHash = await argon2.hash(password);
   const user = await prisma.user.create({
-    data: { email: normalizedEmail, passwordHash },
+    data: { email: normalizedEmail, passwordHash, fullName: normalizedFullName },
     select: {
       id: true,
       email: true,
+      fullName: true,
       role: true,
-      createdAt: true
+      createdAt: true,
     },
   });
 
   res.status(201).json({ user });
-}
+};
 
 export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body ?? {};
@@ -74,7 +87,7 @@ export const login = async (req: Request, res: Response) => {
   const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
 
   // Same message for "no such user" and "wrong password" so attackers can't tell which emails exist
-  if (!user || !(await argon2.verify(user.passwordHash, password))) {
+  if (!user || !user.passwordHash || !(await argon2.verify(user.passwordHash, password))) {
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
@@ -144,7 +157,14 @@ export const logout = async (req: Request, res: Response) => {
 export const me = async (_req: Request, res: Response) => {
   const user = await prisma.user.findUnique({
     where: { id: res.locals.userId },
-    select: { id: true, email: true, createdAt: true },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      role: true,
+      avatarUrl: true,
+      createdAt: true
+    },
   });
 
   if (!user) {
