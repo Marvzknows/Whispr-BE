@@ -14,17 +14,25 @@ enum Role {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  fullName      String         
-  email         String         @unique
-  passwordHash  String?        // Nullable so OAuth-only users can exist
-  avatarUrl     String?        
-  role          Role           @default(USER)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id           String  @id @default(uuid())
+  fullName     String
+  email        String  @unique
+  passwordHash String? // Nullable so OAuth-only users can exist
+  avatarUrl    String?
+  role         Role    @default(USER)
 
-//   accounts      Account[]
+  // Online status for the green dot & "Active now" indicator
+  isOnline   Boolean   @default(false)
+  lastSeenAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   refreshTokens RefreshToken[]
+
+  // Chat relations
+  conversations ConversationParticipant[]
+  sentMessages  Message[]
 }
 
 model RefreshToken {
@@ -36,4 +44,47 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+model Conversation {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Used to easily sort the left sidebar by latest activity ("2m ago", "1h ago")
+  lastMessageAt DateTime @default(now())
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([lastMessageAt(sort: Desc)])
+}
+
+model ConversationParticipant {
+  id             String    @id @default(uuid())
+  conversationId String
+  userId         String
+  lastReadAt     DateTime? // Helps track unread messages per user
+  joinedAt       DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String   @db.Text // Text-only messages
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
 }

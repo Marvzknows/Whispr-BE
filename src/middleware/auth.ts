@@ -14,10 +14,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
     try {
         res.locals.userId = verifyAccessToken(header.slice("Bearer ".length));
-        next();
     } catch {
         res.status(401).json({ error: "Invalid or expired access token" });
+        return;
     }
+
+    next();
 }
 
 export function requireRole(...roles: Role[]) {

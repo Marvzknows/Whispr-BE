@@ -4,6 +4,8 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { config } from "./config.js";
 import authRoutes from "./routes/auth.js";
+import userRoutes from "./routes/user.js"
+import { AppError } from "./utils/errors.js";
 
 const app = express();
 
@@ -23,9 +25,14 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/auth", authRoutes);
+app.use("/api/users", userRoutes)
 
 // Catches errors thrown in any (async) handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof AppError) {
+        res.status(err.status).json({ error: err.message });
+        return;
+    }
     console.error(err);
     res.status(500).json({ error: "Something went wrong" });
 });
